@@ -1,0 +1,11 @@
+{
+  "name": "claude-memento",
+  "version": "0.1.0",
+  "description": "Session persistence for Claude - like Leonard's tattoos in Memento",
+  "scripts": {
+    "test": "node --test",
+    "test:watch": "node --test --watch"
+  },
+  "keywords": ["claude", "session", "memory", "context"],
+  "license": "MIT"
+}

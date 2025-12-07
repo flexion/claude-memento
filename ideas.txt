@@ -31,3 +31,4 @@ Claude has the same problem. Context window fills up, conversation resets, and e
   - Survives context compaction - when Claude summarizes, session file has the real details
   - Progress checkpointing - update throughout work, not just at the end
   - Blockers documentation - capture what's blocking and why before stepping away
+  - all tools should be wrtten in javascript since node is a requirement of claude cli.
