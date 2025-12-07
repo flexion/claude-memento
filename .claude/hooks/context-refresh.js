@@ -10,10 +10,12 @@
  * 1. Track interaction count
  * 2. Show freshness indicator every prompt
  * 3. Inject context files on refresh (every N interactions or session start)
+ * 4. Auto-load session file on startup (if exists for current branch)
  */
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 // Default configuration
 const DEFAULT_CONFIG = {
@@ -98,6 +100,60 @@ function freshnessIndicator(count, refreshInterval, refreshed = false) {
 }
 
 /**
+ * Get current session info using get-session.js
+ * @param {string} cwd - Current working directory
+ * @returns {object|null} Session info or null if no session
+ */
+function getCurrentSession(cwd) {
+  const getSessionPath = path.join(cwd, '.claude/tools/get-session.js');
+
+  if (!fs.existsSync(getSessionPath)) {
+    return null;
+  }
+
+  try {
+    const output = execSync(`node "${getSessionPath}" --json`, {
+      cwd,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return JSON.parse(output);
+  } catch (e) {
+    // No session found or error
+    return null;
+  }
+}
+
+/**
+ * Build session context for injection
+ * @param {string} cwd - Current working directory
+ * @returns {string|null} Session context or null
+ */
+function buildSessionContext(cwd) {
+  const session = getCurrentSession(cwd);
+
+  if (!session || !session.sessionFile) {
+    return null;
+  }
+
+  try {
+    const content = fs.readFileSync(session.sessionFile, 'utf-8');
+    const parts = [
+      `\n---\n**Active Session** (auto-loaded)`,
+      `Branch: \`${session.branch}\``,
+      `Session: \`${path.basename(session.sessionFile)}\``,
+      `Status: ${session.status}`,
+      session.issueId ? `Issue: ${session.issueId}` : null,
+      `\n<session-file>\n${content}\n</session-file>`,
+    ].filter(Boolean);
+
+    return parts.join('\n');
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * Build context content for injection
  * @param {string} cwd - Current working directory
  * @param {Object} cfg - Configuration
@@ -148,6 +204,12 @@ function processSessionStart(input, config = {}) {
   // Always inject context on session start
   const reason = `session ${source}`;
   contextParts.push(buildContextContent(cwd, cfg, reason));
+
+  // Auto-load session file if exists
+  const sessionContext = buildSessionContext(cwd);
+  if (sessionContext) {
+    contextParts.push(sessionContext);
+  }
 
   return {
     systemMessage: freshnessIndicator(0, cfg.refreshInterval, true),
@@ -237,6 +299,8 @@ module.exports = {
   processSessionStart,
   processUserPromptSubmit,
   buildContextContent,
+  buildSessionContext,
+  getCurrentSession,
   loadState,
   saveState,
   findContextFiles,
